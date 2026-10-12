@@ -1,0 +1,105 @@
+"""
+产品专家智能体
+专门负责产品信息咨询和推荐
+"""
+
+from typing import Dict, Any
+from .base_agent import BaseAgent
+
+class ProductAgent(BaseAgent):
+    domain = "product"  # RAG 领域标识（knowledge/product/）
+
+    def __init__(self):
+        super().__init__(
+            name="产品专家",
+            role="产品信息咨询和推荐",
+            expertise=["产品规格", "价格比较", "功能特点", "市场分析"]
+        )
+
+        # TODO: 产品信息应该从数据库获取，这里只是模拟数据
+        # 实际应用中应该连接产品数据库或调用产品API服务
+        self.product_database = {
+            "手机": {
+                "品牌": "智能科技",
+                "型号": ["X1 Pro", "X2 Max", "X3 Lite"],
+                "价格区间": "1999-5999元",
+                "主要特点": ["5G网络", "AI摄影", "长续航", "快充技术"],
+                "适用人群": "商务人士、摄影爱好者、游戏玩家",
+                "推荐指数": "⭐⭐⭐⭐⭐"
+            },
+            "电脑": {
+                "品牌": "计算科技",
+                "型号": ["ThinkPad Pro", "ThinkPad Air", "ThinkPad Gaming"],
+                "价格区间": "3999-12999元",
+                "主要特点": ["高性能处理器", "大容量存储", "轻薄设计", "长续航"],
+                "适用人群": "学生、办公人员、设计师、程序员",
+                "推荐指数": "⭐⭐⭐⭐⭐"
+            },
+            "耳机": {
+                "品牌": "音频科技",
+                "型号": ["SoundPro", "SoundAir", "SoundSport"],
+                "价格区间": "299-1299元",
+                "主要特点": ["降噪技术", "无线连接", "音质优秀", "舒适佩戴"],
+                "适用人群": "音乐爱好者、运动人士、商务人士",
+                "推荐指数": "⭐⭐⭐⭐"
+            },
+            "平板": {
+                "品牌": "平板科技",
+                "型号": ["Tab Pro", "Tab Air", "Tab Mini"],
+                "价格区间": "1999-5999元",
+                "主要特点": ["高清屏幕", "触控笔支持", "多任务处理", "轻薄便携"],
+                "适用人群": "学生、创意工作者、商务人士",
+                "推荐指数": "⭐⭐⭐⭐"
+            }
+        }
+
+    def _get_system_prompt(self) -> str:
+        return f"""你是{self.name}，专门负责{self.role}。
+        你的专业领域包括：{', '.join(self.expertise)}
+
+        请根据客户查询提供专业、详细的产品信息，包括：
+        - 产品规格和功能特点
+        - 价格区间和性价比分析
+        - 适用场景和用户群体
+        - 与竞品的对比优势
+
+        回答要专业、准确、有说服力。如果客户询问的产品不在你的知识范围内，请说明并建议联系销售代表获取最新信息。"""
+
+    def _get_error_fallback(self) -> str:
+        return "抱歉，处理您的产品查询时遇到技术问题，请稍后重试。"
+
+    def _match_data(self, query: str) -> str:
+        """匹配查询中的产品信息"""
+        query_lower = query.lower()
+        matched_info = []
+        matched_categories = set()
+
+        # 精确匹配产品名称
+        for product_name, product_info in self.product_database.items():
+            if product_name in query_lower:
+                # 格式化产品信息
+                info_text = f"""产品：{product_name}
+品牌：{product_info['品牌']}
+型号：{', '.join(product_info['型号'])}
+价格区间：{product_info['价格区间']}
+主要特点：{', '.join(product_info['主要特点'])}
+适用人群：{product_info['适用人群']}
+推荐指数：{product_info['推荐指数']}"""
+                matched_info.append(info_text)
+                matched_categories.add(product_name)
+
+        # 如果没有精确匹配，尝试模糊匹配（泛问"产品"时给出概览）
+        if not matched_info and any(
+            keyword in query_lower for keyword in ["手机", "电脑", "耳机", "平板", "产品", "推荐"]
+        ):
+            for product_name, product_info in self.product_database.items():
+                if product_name in matched_categories:
+                    continue
+                info_text = f"""相关产品：{product_name}
+品牌：{product_info['品牌']}
+价格区间：{product_info['价格区间']}
+主要特点：{', '.join(product_info['主要特点'][:2])}..."""
+                matched_info.append(info_text)
+                matched_categories.add(product_name)
+
+        return "\n\n".join(matched_info) if matched_info else ""
